@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+      contents: read
+      packages: write
     strategy:
       matrix:
         bundles:
@@ -41,6 +43,7 @@ jobs:
       REGISTRY: ghcr.io
       REGISTRY_USER: ${{ github.actor }}
       REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - uses: docker/setup-qemu-action@v3
@@ -49,4 +52,4 @@ jobs:
         with:
           version: "latest"
       - run: echo $REGISTRY_PASSWORD | docker login -u $REGISTRY_USER --password-stdin $REGISTRY
-      - run: earthly --ci --push +build-multi --BUNDLE=${{ matrix.bundles }}
+      - run: earthly --ci --push +build-multi --BUNDLE=${{ matrix.bundles }} --IMAGE_REPOSITORY=$IMAGE_REPOSITORY
