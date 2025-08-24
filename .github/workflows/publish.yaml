@@ -24,6 +24,7 @@ jobs:
           - calico
           - cert-manager
           - flux
+          - flux-bootstrap
           - coco
           - kubevirt
           - kairos
