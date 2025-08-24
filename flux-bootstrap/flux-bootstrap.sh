@@ -27,7 +27,7 @@ rotate_sync_key() {
   URL=$(kairos-agent config get flux.git.url)
   SYNC_KEY=$(kairos-agent config get flux.syncKeyFile)
   timeout $short kubectl -n flux-system delete secret flux-system
-  flux create secret "${version_control/_/-}" flux-system --url="$URL" --private-key-file="$SYNC_KEY"
+  timeout $short flux create secret "${version_control/_/-}" flux-system --url="$URL" --private-key-file="$SYNC_KEY"
 }
 
 cleanup() {
@@ -118,6 +118,7 @@ else
     
     if [[ "$active" == "true" ]]; then
       if timeout $long flux bootstrap "${version_control/_/-}" "${cmdline[@]}"; then
+        rotate_sync_key
         cleanup
         exit 0
       fi
