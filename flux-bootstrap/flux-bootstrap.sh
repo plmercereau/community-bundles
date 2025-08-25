@@ -5,7 +5,7 @@ export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 # Seconds
 short=5
-long=900
+# long=900
 
 configmap=flux-bootstrap
 
