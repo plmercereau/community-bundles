@@ -32,7 +32,6 @@ rotate_sync_key() {
   if [ "$current" != "true" ]; then
     URL=$(kairos-agent config get flux.git.url)
     SYNC_KEY=$(kairos-agent config get flux.syncKeyFile)
-    PRIVATE_KEY=$(cat $SYNC_KEY)
     info "Rotating second key"
     timeout $short kubectl -n flux-system delete secret flux-system
     timeout $short flux create secret git flux-system --url "$URL" --private-key-file "$SYNC_KEY" --label readonly=true
