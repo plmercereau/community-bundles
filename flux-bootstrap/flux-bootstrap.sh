@@ -21,21 +21,24 @@ error() {
   echo $'\e[31mERROR\e[0m:' "$1"
 }
 
-rotate_sync_key() {
-  # Only act if the secret exists
-  if ! timeout $short kubectl -n flux-system get secret flux-system >/dev/null 2>&1; then
-    return 0
-  fi
+bootstrap() {
+  NS=flux-system
+  BRANCH=$(kairos-agent config get "flux.git.branch")
+  REPO_URL=$(kairos-agent config get "flux.git.url")
+  PATH_IN_REPO="$(kairos-agent config get "flux.git.path")" # TODO replace with the cluster id
+  KEY=$(kairos-agent config get "flux.syncKeyFile")
 
-  # check if the secret has the "readonly" label
-  current=$(timeout $short kubectl -n flux-system get secret flux-system -o jsonpath='{.metadata.labels.readonly}')
-  if [ "$current" != "true" ]; then
-    URL=$(kairos-agent config get flux.git.url)
-    SYNC_KEY=$(kairos-agent config get flux.syncKeyFile)
-    info "Rotating second key"
-    timeout $short kubectl -n flux-system delete secret flux-system
-    timeout $short flux create secret git flux-system --url "$URL" --private-key-file "$SYNC_KEY" --label readonly=true
-  fi
+  flux install --namespace "$NS" --components-extra=image-reflector-controller,image-automation-controller
+
+  kubectl -n "$NS" rollout status deploy/source-controller --timeout=180s
+  kubectl -n "$NS" rollout status deploy/kustomize-controller --timeout=180s
+
+  kubectl -n "$NS" delete secret flux-system >/dev/null 2>&1 || true
+  flux create secret git flux-system --namespace "$NS" --url "$REPO_URL" --private-key-file "$KEY"
+
+  flux create source git flux-system --namespace "$NS" --url "$REPO_URL" --branch "$BRANCH" --secret-ref flux-system 
+
+  flux create kustomization flux-system --namespace "$NS" --source "GitRepository/flux-system" --path "$PATH_IN_REPO" --prune true
 }
 
 cleanup() {
@@ -125,13 +128,9 @@ else
     fi
     
     if [[ "$active" == "true" ]]; then
-      if timeout $long flux bootstrap "${version_control/_/-}" "${cmdline[@]}"; then
-        rotate_sync_key
+      if timeout $long bootstrap; then
         cleanup
         exit 0
-      else
-        # Run rotation on failure too: bootstrap may have created the secret with RW key
-        rotate_sync_key
       fi
     fi
 
@@ -141,6 +140,5 @@ else
   done
 fi
 
-rotate_sync_key
 error "Failed to bootstrap with Flux, timed out ($minutes minutes)"
 exit 4
