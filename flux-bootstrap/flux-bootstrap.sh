@@ -128,7 +128,7 @@ else
     fi
     
     if [[ "$active" == "true" ]]; then
-      if timeout $long bootstrap; then
+      if bootstrap; then
         cleanup
         exit 0
       fi
