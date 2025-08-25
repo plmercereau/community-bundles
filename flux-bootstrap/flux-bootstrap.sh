@@ -21,13 +21,22 @@ error() {
   echo $'\e[31mERROR\e[0m:' "$1"
 }
 
-# Replace the initial bootstrap key with a new one (preferrably with a read-only key)
 rotate_sync_key() {
-  info "Rotating second key"
-  URL=$(kairos-agent config get flux.git.url)
-  SYNC_KEY=$(kairos-agent config get flux.syncKeyFile)
-  timeout $short kubectl -n flux-system delete secret flux-system
-  timeout $short flux create secret "${version_control/_/-}" flux-system --url="$URL" --private-key-file="$SYNC_KEY"
+  # Only act if the secret exists
+  if ! timeout $short kubectl -n flux-system get secret flux-system >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # check if the secret has the "readonly" label
+  current=$(timeout $short kubectl -n flux-system get secret flux-system -o jsonpath='{.metadata.labels.readonly}')
+  if [ "$current" != "true" ]; then
+    URL=$(kairos-agent config get flux.git.url)
+    SYNC_KEY=$(kairos-agent config get flux.syncKeyFile)
+    PRIVATE_KEY=$(cat $SYNC_KEY)
+    info "Rotating second key"
+    timeout $short kubectl -n flux-system delete secret flux-system
+    timeout $short flux create secret git flux-system --url "$URL" --private-key-file "$SYNC_KEY" --label readonly=true
+  fi
 }
 
 cleanup() {
@@ -121,6 +130,9 @@ else
         rotate_sync_key
         cleanup
         exit 0
+      else
+        # Run rotation on failure too: bootstrap may have created the secret with RW key
+        rotate_sync_key
       fi
     fi
 
@@ -130,5 +142,6 @@ else
   done
 fi
 
+rotate_sync_key
 error "Failed to bootstrap with Flux, timed out ($minutes minutes)"
 exit 4
